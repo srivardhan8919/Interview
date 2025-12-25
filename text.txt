@@ -1,0 +1,64 @@
+You are an expert full-stack developer specializing in React and browser-based apps. Your task is to generate a COMPLETE, fully functional, single-file HTML application called "InterviewAce" – a free, client-side AI-powered mock interview simulator for software engineering roles. This is an MVP focused solely on the Mock Interview Simulator module, inspired by the "Aether Coach" product design document (a 100% free-tier, browser-only app using Groq and Gemini APIs) and the Perplexity AI structured doc (features like speech-to-text capture, real-time feedback, and progress tracking). The app must run entirely in the browser without any backend, servers, or external dependencies beyond CDNs. It should be testable immediately by opening the HTML file in Chrome (best Web Speech support).
+
+#### Core Goal
+- Help users (e.g., college students like me preparing for tech interviews) practice verbal responses to technical/behavioral questions.
+- Flow: Select role/difficulty → AI generates 5 questions (Gemini) → TTS speaks one question → User speaks answer (STT transcribes) → AI analyzes (Groq for quick fluency/fillers, Gemini for deep content feedback) → Next question or end with report → Save session to localStorage.
+- Emphasize: No "live cheating" – it's a practice gym. Free forever, using user's own free Groq/Gemini API keys (BYOK). Privacy: All audio processed locally via browser APIs.
+
+#### Tech Stack (Strictly Free & Client-Side)
+- **Frontend**: React 18 via CDN (unpkg.com/react@18/umd/react.development.js and react-dom). Use Babel standalone for JSX (unpkg.com/@babel/standalone/babel.min.js).
+- **Styling**: Bootstrap 5 via CDN (cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css) for quick, responsive UI. No Tailwind – my system doesn't support it. Add minimal custom CSS in <style> for tweaks (e.g., full-height container).
+- **Speech**:
+  - STT: Browser Web Speech API (window.SpeechRecognition or webkitSpeechRecognition) – free, real-time transcription. Handle permissions, interim/final results, errors (e.g., fallback to text input if mic denied).
+  - TTS: Browser SpeechSynthesis API – free, speak questions with natural voice (select 'en-US' voice if available). Add rate/pitch options for clarity.
+- **AI APIs**:
+  - Gemini (Google AI Studio free tier): For thoughtful tasks – generate 5 relevant questions (technical + behavioral/STAR) based on role/difficulty; provide per-answer feedback ("Good/Better/Best" with tips, e.g., "Good on Python decorators. Better: Mention @ syntax. Best: Add logging example.").
+  - Groq (free tier, e.g., Llama model): For fast tasks – analyze transcript for fillers ("um/ah/like" count), pace (words/min), clarity score (0-10); quick correctness grade.
+  - Use fetch() for API calls. Include placeholders for API keys (prompt user to input once, save to localStorage). Example Gemini prompt: "Generate 5 questions for [role] at [difficulty] level: 3 technical, 2 behavioral in STAR format."
+  - Handle errors: Rate limits, invalid keys (alert user).
+- **Storage**: localStorage for API keys (geminiKey, groqKey), past sessions (array of {date, role, questions, answers, feedback, score}).
+- **No Other Deps**: No Node.js, npm, Vite, or Python (despite my experience – keep it pure JS). No MongoDB for MVP (localStorage only).
+- **Browser Compatibility**: Target Chrome/Edge. Add notes for Safari/Firefox limitations.
+
+#### UI/UX Requirements (Simple, Professional – Like Google Interview Warmup)
+- Single-page app: Bootstrap container with sections (use React state for routing/views).
+- **Components** (use functional components with hooks: useState, useEffect):
+  - **Settings Modal** (on load/first run): Inputs for Groq/Gemini API keys (save to localStorage). Button to test keys (simple fetch ping).
+  - **Home/Dashboard**: Welcome header ("InterviewAce: Your AI Interview Gym"). Role dropdown (e.g., "Junior Python Dev", "React Frontend", "System Design"). Difficulty (Easy/Hard). "Start Interview" button. Below: Recent sessions list (from localStorage, clickable to view reports).
+  - **Interview View**: Progress bar (question 1/5). Display current question text. "Speak Question" button (triggers TTS). Mic button (start/stop STT, show "Recording..." with timer ~60s max). Transcript display (editable). "Submit" button (triggers AI analysis, shows feedback inline: fluency score, fillers count, content tips). "Next" button.
+  - **Report View** (post-interview): Full transcript table (Q/A/Feedback). Overall scores (avg fluency, total fillers). Export button (download JSON/CSV). "New Session" link.
+- Layout: Responsive (mobile-first), clean cards, buttons with icons (use Bootstrap classes). Add loading spinners for API calls.
+- Accessibility: ARIA labels for speech buttons, keyboard nav.
+
+#### Detailed Feature Flow (Implement Exactly)
+1. **On Load**: Check localStorage for keys. If missing, show modal. Load recent sessions.
+2. **Start Session**: User selects role/difficulty → fetch Gemini to generate questions array → Store in state.
+3. **Question Loop** (for each of 5):
+   - TTS.speak(questionText, {rate: 0.9, pitch: 1}).
+   - User clicks mic: Start recognition.continuous=true, interimResults=true. On end: Get final transcript.
+   - Fallback: Textarea for manual input if STT fails.
+   - Submit: Parallel fetches – Groq prompt: "Count fillers (um/ah/like) in '[transcript]', estimate pace (words/min), score clarity 0-10."; Gemini: "Feedback on answer '[transcript]' to '[question]': Good/Better/Best levels with tips, focus on technical accuracy and STAR structure."
+   - Display: Feedback card (e.g., "Fluency: 8/10 | Fillers: 3 | Tip: ...").
+4. **End Session**: Compile report → Save to localStorage.sessions → Show Report View.
+5. **History**: List sessions with date/role/score; click to expand transcript.
+
+#### Code Structure (Generate as Single index.html)
+- <!DOCTYPE html> with <head>: Meta, title "InterviewAce", CDNs for React, ReactDOM, Babel, Bootstrap CSS.
+- <body>: <div id="root"></div>
+- <script type="text/babel">:
+  - Import React hooks.
+  - Main App component: useState for views ('home'|'interview'|'report'), questions, currentQ, transcript, feedback, sessions, keys.
+  - Sub-components: SettingsModal, Home, InterviewQuestion, Report.
+  - useEffect: Load/save localStorage.
+  - AI functions: async genQuestions(role, diff, geminiKey), async analyzeAnswer(transcript, question, groqKey, geminiKey).
+  - Speech functions: speakText(text), startRecording(callback), with error handling (e.g., if (!('SpeechRecognition' in window)) fallback to text).
+- End </script>
+
+#### Edge Cases & Polish
+- Permissions: Request mic access on first use.
+- Limits: 5 questions max/session to stay under free API tiers.
+- Offline: Basic mode with pre-canned questions if no keys.
+- Testing: Add console.logs for debugging. Ensure no crashes on empty transcript.
+- Enhancements (Future Hooks): Comment sections for adding Repeater/Comprehension modules.
+
+Generate the ENTIRE code in one go – fully runnable, no placeholders beyond API key inputs. Make it modular for easy extension. After code, add a brief README comment on how to run (open in Chrome, input keys). Output only the HTML file content.
