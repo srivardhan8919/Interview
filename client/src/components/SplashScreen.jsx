@@ -43,7 +43,7 @@ const SplashScreen = ({ onComplete }) => {
         // Health check function
         const checkHealth = async () => {
             try {
-                await api.get('/health');
+                await api.get('/api/health');
                 backendReady = true;
                 setProgress(100);
                 setMessage('Ready!');

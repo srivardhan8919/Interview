@@ -11,7 +11,7 @@ const History = () => {
     useEffect(() => {
         const fetchSessions = async () => {
             try {
-                const res = await api.get('/sessions');
+                const res = await api.get('/api/sessions');
                 setSessions(res.data);
             } catch (error) {
                 console.error("Failed to fetch sessions", error);

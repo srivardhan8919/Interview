@@ -2,7 +2,7 @@ import axios from 'axios';
 
 // In production: Use full backend URL from environment variable
 // In development: Use '/api' which Vite proxies to localhost:5000
-const API_BASE_URL = import.meta.env.VITE_API_URL || '/api' || 'https://interviewace-backend-7cx2.onrender.com/';
+const API_BASE_URL = import.meta.env.VITE_API_URL || '/api' ;
 
 const api = axios.create({
     baseURL: API_BASE_URL,

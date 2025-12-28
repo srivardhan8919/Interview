@@ -99,7 +99,7 @@ const InterviewSession = () => {
 
             // 2. Load Data in background
             try {
-                const res = await api.post('/ai/generate', { role, difficulty, round: 1, sessionSeed: Date.now() });
+                const res = await api.post('/api/ai/generate', { role, difficulty, round: 1, sessionSeed: Date.now() });
                 setQuestions(res.data);
 
                 // 3. Transition to Interview
@@ -124,7 +124,7 @@ const InterviewSession = () => {
     const loadRound = async (roundNum) => {
         setLoading(true); // Internal loading state for data fetch
         try {
-            const res = await api.post('/ai/generate', { role, difficulty, round: roundNum, sessionSeed: Date.now() });
+            const res = await api.post('/api/ai/generate', { role, difficulty, round: roundNum, sessionSeed: Date.now() });
             setQuestions(res.data);
             setCurrentQIndex(0);
             setRound(roundNum);
@@ -265,7 +265,7 @@ const InterviewSession = () => {
             // Heuristic Analysis (Silent / Background)
             // We still call it to get the "feedback" object structure for history, 
             // even if we don't show it.
-            const res = await api.post('/ai/analyze', { transcript });
+            const res = await api.post('/api/ai/analyze', { transcript });
             const result = res.data;
 
             // Store data
@@ -320,7 +320,7 @@ const InterviewSession = () => {
         setSessionState(STATE.OUTRO); // "Finalizing your profile..."
 
         try {
-            const reportRes = await api.post('/ai/report', { role, difficulty, history: answers });
+            const reportRes = await api.post('/api/ai/report', { role, difficulty, history: answers });
             const finalReport = reportRes.data;
 
             const sessionData = {
@@ -330,7 +330,7 @@ const InterviewSession = () => {
                 report: finalReport
             };
 
-            await api.post('/sessions', sessionData);
+            await api.post('/api/sessions', sessionData);
 
             // Smooth exit
             setTimeout(() => {

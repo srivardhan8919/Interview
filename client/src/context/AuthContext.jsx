@@ -18,7 +18,7 @@ export const AuthProvider = ({ children }) => {
 
     const login = async (username, password) => {
         try {
-            const res = await api.post('/auth/login', { username, password });
+            const res = await api.post('/api/auth/login', { username, password });
             localStorage.setItem('token', res.data.token);
             localStorage.setItem('username', res.data.username);
             setUser({ username: res.data.username });
@@ -31,7 +31,7 @@ export const AuthProvider = ({ children }) => {
 
     const signup = async (username, password) => {
         try {
-            await api.post('/auth/signup', { username, password });
+            await api.post('/api/auth/signup', { username, password });
             return true;
         } catch (error) {
             console.error("Signup failed", error);
