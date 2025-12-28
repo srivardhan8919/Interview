@@ -92,10 +92,10 @@ const History = () => {
                 doc.text(aLines, 20, y);
                 y += aLines.length * 5 + 3;
 
-                // Feedback metrics
+                // Feedback metrics (with null guards)
                 doc.setFontSize(9);
                 doc.setTextColor(59, 130, 246);
-                const metrics = `Clarity: ${item.feedback.clarity}/10 | Pace: ${item.feedback.pace}wpm | Fillers: ${item.feedback.fillers}`;
+                const metrics = `Clarity: ${item.feedback?.clarity ?? 'N/A'}/10 | Pace: ${item.feedback?.pace ?? 'N/A'}wpm | Fillers: ${item.feedback?.fillers ?? 'N/A'}`;
                 doc.text(metrics, 20, y);
                 y += 5;
 
