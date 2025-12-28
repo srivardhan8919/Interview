@@ -7,14 +7,8 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-// Middleware - Explicit CORS configuration for production
-const corsOptions = {
-    origin: process.env.CORS_ORIGIN || '*',
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization'],
-    credentials: true
-};
-app.use(cors(corsOptions));
+// Middleware
+app.use(cors());
 app.use(express.json());
 
 // Routes
