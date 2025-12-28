@@ -111,6 +111,20 @@ const SplashScreen = ({ onComplete }) => {
                     </div>
                     <p className="splash-progress-text">{Math.round(progress)}%</p>
                 </div>
+
+                {/* Platform Recommendation */}
+                <div style={{
+                    position: 'absolute',
+                    bottom: '2rem',
+                    width: '100%',
+                    textAlign: 'center',
+                    color: '#9CA3AF', // equivalent to text-tertiary
+                    fontSize: '0.85rem',
+                    opacity: 0.8
+                }}>
+                    <span className="material-icons" style={{ fontSize: '14px', verticalAlign: 'middle', marginRight: '4px' }}>desktop_windows</span>
+                    Best in Desktop Mode
+                </div>
             </div>
         </div>
     );

@@ -21,6 +21,15 @@ const InterviewSession = () => {
     // --- State Management ---
     const [sessionState, setSessionState] = useState(STATE.INTRO);
 
+    // --- RESPONSIVE LOGIC ---
+    const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+
+    useEffect(() => {
+        const handleResize = () => setIsMobile(window.innerWidth < 768);
+        window.addEventListener('resize', handleResize);
+        return () => window.removeEventListener('resize', handleResize);
+    }, []);
+
     // --- LAYOUT: RESIZABLE PANELS ---
     const [leftWidth, setLeftWidth] = useState(300); // Pixels
     const [rightWidth, setRightWidth] = useState(350); // Pixels
@@ -29,6 +38,8 @@ const InterviewSession = () => {
     const isDraggingRight = useRef(false);
 
     useEffect(() => {
+        if (isMobile) return; // Disable drag logic on mobile
+
         const handleMouseMove = (e) => {
             if (!containerRef.current) return;
             const containerRect = containerRef.current.getBoundingClientRect();
@@ -58,14 +69,16 @@ const InterviewSession = () => {
             document.removeEventListener('mousemove', handleMouseMove);
             document.removeEventListener('mouseup', handleMouseUp);
         };
-    }, [leftWidth, rightWidth]);
+    }, [leftWidth, rightWidth, isMobile]);
 
     const startDragLeft = () => {
+        if (isMobile) return;
         isDraggingLeft.current = true;
         document.body.style.cursor = 'col-resize';
     };
 
     const startDragRight = () => {
+        if (isMobile) return;
         isDraggingRight.current = true;
         document.body.style.cursor = 'col-resize';
     };
@@ -377,47 +390,65 @@ const InterviewSession = () => {
     return (
         <div
             ref={containerRef}
-            className="interview-container container-fluid p-0 d-flex overflow-hidden"
+            className={`interview-container container-fluid p-0 d-flex ${isMobile ? 'flex-column' : 'flex-row'} overflow-hidden`}
             style={{
                 height: 'calc(100vh - 80px)',
                 width: '100vw'
             }}
         >
-            {/* --- LEFT: CONTEXT (Resizable) --- */}
+            {/* --- LEFT: CONTEXT (Resizable on Desktop, Top on Mobile) --- */}
             <div
-                className={`bg-surface d-flex flex-column h-100 shadow-sm transition-colors ${isReading ? 'focus-active' : 'focus-dimmed'}`}
-                style={{ width: leftWidth, minWidth: 200, flexShrink: 0, zIndex: 10 }}
+                className={`bg-surface d-flex flex-column ${isMobile ? '' : 'h-100'} shadow-sm transition-colors ${isReading ? 'focus-active' : 'focus-dimmed'}`}
+                style={{
+                    width: isMobile ? '100%' : leftWidth,
+                    height: isMobile ? 'auto' : '100%',
+                    maxHeight: isMobile ? '35%' : 'none', // Limit height on mobile
+                    minWidth: 200,
+                    flexShrink: 0,
+                    zIndex: 10
+                }}
             >
-                <div className="p-3 border-bottom">
-                    <span className="small text-uppercase tracking-wider fw-bold text-secondary">Correctness Context</span>
-                    <div className="mt-1 text-primary fw-bold">
-                        {round === 1 ? "Concepts & Definitions" : "Scenarios & Trade-offs"}
+                <div className="p-3 border-bottom d-flex justify-content-between align-items-center">
+                    <div>
+                        <span className="small text-uppercase tracking-wider fw-bold text-secondary">
+                            {round === 1 ? "Concepts" : "Scenarios"}
+                        </span>
                     </div>
+                    {/* On mobile, maybe a collapse button if needed? For now simple stack. */}
                 </div>
                 <div className="p-3 overflow-auto flex-grow-1" style={{ minHeight: 0 }}>
-                    <h3 className="h5 fw-bold text-dark question-text mb-3 animate-breathe" style={{ animationDuration: '6s', overflowWrap: 'break-word' }}>{currentQ}</h3>
+                    <h3 className={`fw-bold text-dark question-text mb-3 animate-breathe ${isMobile ? 'h6' : 'h5'}`}
+                        style={{ animationDuration: '6s', overflowWrap: 'break-word', fontSize: isMobile ? '1rem' : undefined }}>
+                        {currentQ}
+                    </h3>
 
                     {isReading && (
                         <div className="text-secondary small mt-2">
-                            <span className="me-2">💡</span> The interviewer is waiting. Click the mic when ready.
+                            <span className="me-2">💡</span> {isMobile ? "Tap mic to answer" : "The interviewer is waiting. Click the mic when ready."}
                         </div>
                     )}
                 </div>
             </div>
 
-            {/* RESIZER LEFT */}
-            <div
-                className="d-flex align-items-center justify-content-center bg-light border-end border-start hover-bg-secondary"
-                style={{ width: 8, cursor: 'col-resize', zIndex: 20, userSelect: 'none' }}
-                onMouseDown={startDragLeft}
-            >
-                <div style={{ width: 2, height: 20, background: '#ccc' }}></div>
-            </div>
+            {/* RESIZER LEFT (Hidden on Mobile) */}
+            {!isMobile && (
+                <div
+                    className="d-flex align-items-center justify-content-center bg-light border-end border-start hover-bg-secondary"
+                    style={{ width: 8, cursor: 'col-resize', zIndex: 20, userSelect: 'none' }}
+                    onMouseDown={startDragLeft}
+                >
+                    <div style={{ width: 2, height: 20, background: '#ccc' }}></div>
+                </div>
+            )}
 
             {/* --- CENTER: PRESENCE (Fluid) --- */}
             <div
                 className={`flex-grow-1 bg-body d-flex flex-column align-items-center justify-content-center position-relative transition-all ${isFeedback ? 'blur-sm' : ''}`}
-                style={{ minWidth: 300, overflow: 'hidden' }}
+                style={{
+                    minWidth: 300,
+                    overflow: 'hidden',
+                    minHeight: isMobile ? '200px' : undefined // Ensure avatar has space
+                }}
             >
                 <div className="w-100 h-100 position-absolute top-0 start-0 avatar-container">
                     <Avatar isSpeaking={isSpeaking} />
@@ -425,28 +456,42 @@ const InterviewSession = () => {
 
                 {/* Status Indicator (Non-intrusive) */}
                 <div className="position-absolute bottom-0 mb-4 fade-in" style={{ zIndex: 5 }}>
-                    {isRecording && !isPaused && <span className="badge bg-danger text-white px-3 py-2 rounded-pill shadow-sm animate-pulse">Listening... (Take your time)</span>}
-                    {isPaused && <span className="badge bg-warning text-dark px-3 py-2 rounded-pill shadow-sm">Paused - Thought Break</span>}
+                    {isRecording && !isPaused && <span className="badge bg-danger text-white px-3 py-2 rounded-pill shadow-sm animate-pulse">Listening...</span>}
+                    {isPaused && <span className="badge bg-warning text-dark px-3 py-2 rounded-pill shadow-sm">Paused</span>}
                 </div>
             </div>
 
-            {/* RESIZER RIGHT */}
-            <div
-                className="d-flex align-items-center justify-content-center bg-light border-end border-start hover-bg-secondary"
-                style={{ width: 8, cursor: 'col-resize', zIndex: 20, userSelect: 'none' }}
-                onMouseDown={startDragRight}
-            >
-                <div style={{ width: 2, height: 20, background: '#ccc' }}></div>
-            </div>
-
-            {/* --- RIGHT: ACTION (Resizable) --- */}
-            <div
-                className={`bg-surface d-flex flex-column h-100 shadow-sm transition-colors ${isAnswering ? 'focus-active' : 'focus-dimmed'}`}
-                style={{ width: rightWidth, minWidth: 200, flexShrink: 0, zIndex: 10, overflow: 'hidden' }}
-            >
-                <div className="p-3 border-bottom d-flex justify-content-between align-items-center bg-body" style={{ flexShrink: 0 }}>
-                    <span className="small text-uppercase tracking-wider fw-bold text-secondary">Your Answer</span>
+            {/* RESIZER RIGHT (Hidden on Mobile) */}
+            {!isMobile && (
+                <div
+                    className="d-flex align-items-center justify-content-center bg-light border-end border-start hover-bg-secondary"
+                    style={{ width: 8, cursor: 'col-resize', zIndex: 20, userSelect: 'none' }}
+                    onMouseDown={startDragRight}
+                >
+                    <div style={{ width: 2, height: 20, background: '#ccc' }}></div>
                 </div>
+            )}
+
+            {/* --- RIGHT: ACTION (Resizable on Desktop, Bottom on Mobile) --- */}
+            <div
+                className={`bg-surface d-flex flex-column ${isMobile ? '' : 'h-100'} shadow-sm transition-colors ${isAnswering ? 'focus-active' : 'focus-dimmed'}`}
+                style={{
+                    width: isMobile ? '100%' : rightWidth,
+                    height: isMobile ? 'auto' : '100%',
+                    minHeight: isMobile ? '30%' : 0, // Ensure controls are visible
+                    minWidth: 200,
+                    flexShrink: 0,
+                    zIndex: 10,
+                    overflow: 'hidden',
+                    borderTop: isMobile ? '1px solid #eee' : 'none'
+                }}
+            >
+                {/* Header hidden on mobile to save space, or kept small */}
+                {!isMobile && (
+                    <div className="p-3 border-bottom d-flex justify-content-between align-items-center bg-body" style={{ flexShrink: 0 }}>
+                        <span className="small text-uppercase tracking-wider fw-bold text-secondary">Your Answer</span>
+                    </div>
+                )}
 
                 {/* Main Content Area - constrained to remaining space */}
                 <div className="p-3 flex-grow-1 d-flex flex-column overflow-hidden" style={{ minHeight: 0 }}>
@@ -458,7 +503,7 @@ const InterviewSession = () => {
                             setTranscript(e.target.value);
                             transcriptRef.current = e.target.value;
                         }}
-                        placeholder={isReading ? "Listen to the question first..." : "Click mic and speak freely..."}
+                        placeholder={isReading ? "Listen..." : "Type or speak..."}
                         disabled={isFeedback}
                     ></textarea>
                 </div>
@@ -471,7 +516,7 @@ const InterviewSession = () => {
 
                     {!isRecording && !transcript && (
                         <button className="btn btn-google rounded-pill px-4 py-3 shadow-md fw-bold d-flex align-items-center gap-2" onClick={startRecording}>
-                            <span className="material-icons">mic</span> Start Answer
+                            <span className="material-icons">mic</span> {isMobile ? "Answer" : "Start Answer"}
                         </button>
                     )}
 
@@ -481,14 +526,14 @@ const InterviewSession = () => {
                                 {isPaused ? "Resume" : "Pause"}
                             </button>
                             <button className="btn btn-danger rounded-pill px-4 py-2 shadow-sm" onClick={handleCompleteAnswer}>
-                                Complete Answer
+                                Done
                             </button>
                         </>
                     )}
 
                     {transcript && !isRecording && (
                         <button className="btn btn-success rounded-pill px-4 py-3 shadow-md fw-bold" onClick={handleCompleteAnswer}>
-                            Submit Text
+                            Submit
                         </button>
                     )}
                 </div>
