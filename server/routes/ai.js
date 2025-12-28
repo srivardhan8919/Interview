@@ -49,7 +49,7 @@ const validateQuestions = (questions, difficulty) => {
 };
 
 const validateReport = (json, historyLength) => {
-    if (!json.executive_summary || !json.top_3_focus_areas || !json.question_feedback) return { valid: false, reason: "Missing top-level keys" };
+    if (!json.executive_summary || !json.top_3_focus_areas || !json.question_feedback || !json.strengths || !json.areas_of_improvement) return { valid: false, reason: "Missing top-level keys" };
     if (!Array.isArray(json.question_feedback)) return { valid: false, reason: "question_feedback is not array" };
     if (json.question_feedback.length !== historyLength) return { valid: false, reason: `Length mismatch: Expected ${historyLength}, got ${json.question_feedback.length}` };
 
@@ -64,6 +64,37 @@ const validateReport = (json, historyLength) => {
         }
     }
     return { valid: true };
+};
+
+// ============================================================================
+// STATIC QUESTION HELPERS (HR & Managerial use staticQuestions from data file)
+// ============================================================================
+
+// --- HELPER: Get random questions from pool ---
+const getRandomQuestions = (pool, count) => {
+    const shuffled = [...pool].sort(() => Math.random() - 0.5);
+    return shuffled.slice(0, count);
+};
+
+// --- HELPER: Get static questions for HR/Managerial ---
+const getStaticQuestions = (role, round) => {
+    const questionBank = staticQuestions[role];
+
+    if (!questionBank) {
+        console.error(`[STATIC] No question bank found for role: ${role}`);
+        return null;
+    }
+
+    if (round === 1) {
+        // Round 1: Return fixed questions (always same)
+        console.log(`[STATIC] ${role} Round 1: Returning fixed questions`);
+        return questionBank.round1_fixed;
+    } else {
+        // Round 2: Return random selection from pool
+        const randomQuestions = getRandomQuestions(questionBank.round2_pool, 4);
+        console.log(`[STATIC] ${role} Round 2: Returning random questions from pool`);
+        return randomQuestions;
+    }
 };
 
 // --- PHASE 1: BATCH GENERATION ---
@@ -86,12 +117,22 @@ router.post('/generate', checkKeys, async (req, res) => {
         }
     };
 
-    const TECHNICAL_ROLES = [
-        "Frontend Developer", "Backend Developer", "Full Stack Developer", "DevOps Engineer",
-        "Data Scientist", "Machine Learning Engineer", "Python Developer", "Java Developer"
-    ];
-
     try {
+        // =====================================================================
+        // HR & MANAGERIAL: USE STATIC QUESTIONS (NO LLM)
+        // =====================================================================
+        const isHR = role === "HR";
+        const isManagerial = role === "Managerial";
+
+        if (isHR || isManagerial) {
+            const questions = getStaticQuestions(role, round);
+            console.log(`[GENERATE] ${role} using STATIC questions:`, questions);
+            return res.json(questions);
+        }
+
+        // =====================================================================
+        // TECHNICAL ROLES: USE LLM GENERATION (Gemini)
+        // =====================================================================
         if (USE_STATIC_QUESTIONS) {
             return res.json(["Static Fallback Q1", "Static Fallback Q2"]);
         }
@@ -99,23 +140,10 @@ router.post('/generate', checkKeys, async (req, res) => {
         const diffRules = DIFFICULTY_CONFIG[difficulty]?.[round] || DIFFICULTY_CONFIG["Medium"][1];
         const count = round === 1 ? 5 : 4;
 
-        let topicInstructions = "";
-        if (TECHNICAL_ROLES.includes(role)) {
-            topicInstructions = `
-            TOPIC MIXING (MANDATORY):
-            - Include a balanced mix of: Role-specific skills (Primary), Databases, Operating Systems, Networking, DSA Logic.
-            - DSA Logic Rules: Ask to explain the logic (e.g., "Why use a hash map?"). NEVER ask to write code.
-            - Ensure role-specific questions remain the focus.
-            - Do NOT cluster topics.
-            `;
-        }
-
         const prompt = `Generate ${count} unique technical interview questions for a ${role} position (Round ${round}).
         
         STRICT DIFFICULTY LEVEL: ${difficulty}
         DIFFICULTY RULES: ${diffRules}
-        
-        ${topicInstructions}
         
         STRICT VALIDATION RULES:
         1. Diversity: Each question MUST test a different skill.
@@ -200,6 +228,8 @@ router.post('/report', checkKeys, async (req, res) => {
     MANDATORY OUTPUT STRUCTURE (Strict JSON):
     {
       "executive_summary": "Conversational summary (2-3 sentences). Use 'You'.",
+      "strengths": ["Strength 1 (Be specific)", "Strength 2", "Strength 3"],
+      "areas_of_improvement": ["Improvement 1 (Be constructive)", "Improvement 2", "Improvement 3"],
       "top_3_focus_areas": ["Actionable Step 1", "Step 2", "Step 3"],
       "question_feedback": [
         {
@@ -239,8 +269,8 @@ router.post('/report', checkKeys, async (req, res) => {
             // Success - Map to FrontEnd Props
             const finalReport = {
                 summary: json.executive_summary,
-                strengths: [],
-                weaknesses: [],
+                strengths: json.strengths,
+                weaknesses: json.areas_of_improvement,
                 suggestions: json.top_3_focus_areas,
                 score: 0,
                 question_explanations: json.question_feedback

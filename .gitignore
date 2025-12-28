@@ -29,5 +29,11 @@ logs
 # Testing
 coverage/
 
+# Local databases
+*.db
+
+# Error logs
+error.log
+
 # OS specific
 Thumbs.db

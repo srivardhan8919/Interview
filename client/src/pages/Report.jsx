@@ -2,6 +2,7 @@ import React, { useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { jsPDF } from 'jspdf';
+import autoTable from 'jspdf-autotable';
 
 const Report = () => {
     const location = useLocation();
@@ -13,184 +14,191 @@ const Report = () => {
         return <div className="text-center mt-5 text-secondary">No session data found. <button className="btn btn-link" onClick={() => navigate('/')}>Go Home</button></div>;
     }
 
+    // Helper to clean text for PDF and UI
+    // Removes non-printable characters, artifacts like 'þ', and strips Markdown
+    const cleanText = (text) => {
+        if (!text) return "";
+        let clean = text.toString();
+        // Remove Markdown chars (basic)
+        clean = clean.replace(/[*_#`]/g, '');
+        // Remove known bad entities if they appeared
+        clean = clean.replace(/&nbsp;/g, ' ');
+        clean = clean.replace(/&amp;/g, '&');
+        clean = clean.replace(/&quot;/g, '"');
+        clean = clean.replace(/&apos;/g, "'");
+        // Aggressive cleaning: Keep only ASCII printable characters and newlines
+        // This removes 'þ', 'â', '€', 'Ø', 'Ü', '¡' etc.
+        clean = clean.replace(/[^\x20-\x7E\n]/g, '');
+        return clean.replace(/\s+/g, ' ').trim();
+    };
+
     const downloadPDF = () => {
         const doc = new jsPDF();
+        const pageWidth = doc.internal.pageSize.width;
 
-        // Header
-        doc.setFillColor(59, 130, 246); // Primary blue
-        doc.rect(0, 0, 210, 40, 'F');
+        // --- THEME ---
+        const colors = {
+            primary: [37, 99, 235],    // Blue 600
+            secondary: [107, 114, 128], // Gray 500
+            successBg: [220, 252, 231], // Green 100
+            successText: [21, 128, 61], // Green 700
+            dangerBg: [254, 226, 226],  // Red 100
+            dangerText: [185, 28, 28],  // Red 700
+            infoBg: [239, 246, 255],    // Blue 50
+            text: [31, 41, 55]          // Gray 800
+        };
+
+        // --- TITLE ---
+        doc.setFillColor(...colors.primary);
+        doc.rect(0, 0, pageWidth, 40, 'F');
         doc.setTextColor(255, 255, 255);
-        doc.setFontSize(24);
-        doc.text("InterviewAce Report", 20, 20);
+        doc.setFontSize(22);
+        doc.setFont("helvetica", "bold");
+        doc.text("Interview Performance Report", 14, 25);
 
         doc.setFontSize(10);
-        doc.text(`Generated on ${new Date().toLocaleDateString()}`, 20, 30);
-
-        // Metadata
-        doc.setTextColor(0, 0, 0);
-        let y = 50;
-        doc.setFontSize(12);
-        doc.setFont("helvetica", "bold");
-        doc.text(`Role:`, 20, y);
         doc.setFont("helvetica", "normal");
-        doc.text(session.role, 50, y);
+        doc.text(`Generated on ${new Date().toLocaleDateString()}`, 14, 34);
 
-        y += 7;
-        doc.setFont("helvetica", "bold");
-        doc.text(`Difficulty:`, 20, y);
-        doc.setFont("helvetica", "normal");
-        doc.text(session.difficulty, 50, y);
+        let finalY = 45;
 
-        y += 7;
-        doc.setFont("helvetica", "bold");
-        doc.text(`Date:`, 20, y);
-        doc.setFont("helvetica", "normal");
-        doc.text(new Date(session.date).toLocaleString(), 50, y);
+        // --- INFO TABLE ---
+        autoTable(doc, {
+            startY: finalY,
+            head: [['Role', 'Difficulty', 'Questions Played']],
+            body: [[cleanText(session.role), cleanText(session.difficulty), session.data ? String(session.data.length) : "0"]],
+            theme: 'plain',
+            styles: { fontSize: 11, cellPadding: 5 },
+            headStyles: { fontStyle: 'bold', textColor: colors.secondary },
+            bodyStyles: { fontStyle: 'bold', textColor: colors.primary, fontSize: 12 }
+        });
+        finalY = doc.lastAutoTable.finalY + 10;
 
-        y += 7;
-        doc.setFont("helvetica", "bold");
-        doc.text(`Overall Score:`, 20, y);
-        doc.setFont("helvetica", "normal");
-        doc.text(`${session.score ? session.score : 0}/10`, 50, y);
-
-        y += 15;
-        doc.line(20, y, 190, y);
-        y += 10;
-
-        // Aggregate Summary
+        // --- EXECUTIVE SUMMARY ---
         if (session.report) {
-            doc.setFontSize(14);
-            doc.setFont("helvetica", "bold");
-            doc.text("Executive Summary", 20, y);
-            y += 7;
+            autoTable(doc, {
+                startY: finalY,
+                head: [['Executive Summary']],
+                body: [[cleanText(session.report.summary) || "No summary available."]],
+                theme: 'striped',
+                headStyles: { fillColor: colors.primary, fontSize: 12, halign: 'left' },
+                bodyStyles: { fontSize: 11, textColor: colors.text, cellPadding: 6 },
+                margin: { top: 10 }
+            });
+            finalY = doc.lastAutoTable.finalY + 10;
 
-            doc.setFontSize(10);
-            doc.setFont("helvetica", "normal");
-            const sumLines = doc.splitTextToSize(session.report.summary || "", 170);
-            doc.text(sumLines, 20, y);
-            y += sumLines.length * 5 + 10;
+            // --- STRENGTHS & WEAKNESSES ---
+            const strengths = session.report.strengths?.map(s => `• ${cleanText(s)}`).join('\n') || "None listed.";
+            const weaknesses = session.report.weaknesses?.map(w => `• ${cleanText(w)}`).join('\n') || "None listed.";
 
-            if (session.report.strengths?.length) {
-                doc.setFont("helvetica", "bold");
-                doc.text("Strengths:", 20, y);
-                doc.setFont("helvetica", "normal");
-                y += 5;
-                session.report.strengths.forEach(s => {
-                    doc.text(`- ${s}`, 25, y);
-                    y += 5;
-                });
-                y += 5;
-            }
-
-            if (session.report.weaknesses?.length) {
-                doc.setFont("helvetica", "bold");
-                doc.text("Weaknesses:", 20, y);
-                doc.setFont("helvetica", "normal");
-                y += 5;
-                session.report.weaknesses.forEach(w => {
-                    doc.text(`- ${w}`, 25, y);
-                    y += 5;
-                });
-                y += 10;
-            }
-
-            doc.line(20, y, 190, y);
-            y += 10;
+            autoTable(doc, {
+                startY: finalY,
+                head: [['Top Strengths', 'Areas for Improvement']],
+                body: [[strengths, weaknesses]],
+                theme: 'grid',
+                headStyles: {
+                    fillColor: [255, 255, 255],
+                    textColor: colors.text,
+                    fontSize: 12,
+                    fontStyle: 'bold',
+                    lineColor: [200, 200, 200],
+                    lineWidth: 0.1
+                },
+                columnStyles: {
+                    0: { textColor: colors.successText, cellWidth: '50%' },
+                    1: { textColor: colors.dangerText, cellWidth: '50%' }
+                },
+                bodyStyles: { fontSize: 10, cellPadding: 6, valign: 'top' }
+            });
+            finalY = doc.lastAutoTable.finalY + 15;
         }
 
-        // Content Loop
+        // --- DETAILED ANALYSIS ---
+        doc.setFontSize(14);
+        doc.setTextColor(...colors.text);
+        doc.setFont("helvetica", "bold");
+        doc.text("Detailed Question Analysis", 14, finalY);
+        finalY += 6;
+
         if (session.data) {
             session.data.forEach((item, index) => {
-                if (y > 250) {
-                    doc.addPage();
-                    y = 20;
-                }
-
-                // Question
-                doc.setFont("helvetica", "bold");
-                doc.setFontSize(11);
-                doc.setTextColor(31, 41, 55);
-                const qLines = doc.splitTextToSize(`Q${index + 1}: ${item.question}`, 170);
-                doc.text(qLines, 20, y);
-                y += qLines.length * 5 + 3;
-
-                // Answer
-                doc.setFont("helvetica", "normal");
-                doc.setFontSize(10);
-                doc.setTextColor(75, 85, 99);
-                const aPrefix = "Your Answer: ";
-                const aLines = doc.splitTextToSize(aPrefix + (item.answer || "(No answer)"), 170);
-                doc.text(aLines, 20, y);
-                y += aLines.length * 5 + 3;
-
-                // Feedback Logic
                 const explanation = session.report?.question_explanations?.[index];
 
+                // Question Header
+                autoTable(doc, {
+                    startY: finalY,
+                    head: [[`Q${index + 1}: ${cleanText(item.question)}`]],
+                    theme: 'plain',
+                    headStyles: { fillColor: [243, 244, 246], textColor: colors.primary, fontSize: 11, fontStyle: 'bold' },
+                    margin: { top: 10 }
+                });
+                finalY = doc.lastAutoTable.finalY + 2;
+
+                // Answer
+                autoTable(doc, {
+                    startY: finalY,
+                    body: [[`Your Answer: ${cleanText(item.answer) || "(No answer)"}`]],
+                    theme: 'plain',
+                    bodyStyles: { fontSize: 10, textColor: colors.secondary, fontStyle: 'italic' }
+                });
+                finalY = doc.lastAutoTable.finalY + 5;
+
+                // Feedback
                 if (explanation) {
-                    // 1. Well
-                    doc.setFont("helvetica", "bold");
-                    doc.setTextColor(22, 163, 74); // Green
-                    doc.text("What You Did Well:", 20, y);
-                    y += 5;
-                    doc.setFont("helvetica", "normal");
-                    doc.setTextColor(0);
-                    const wellLines = doc.splitTextToSize(explanation.what_you_did_well, 170);
-                    doc.text(wellLines, 20, y);
-                    y += wellLines.length * 5 + 5;
+                    const rows = [];
+                    // Using specific icons as labels. jsPDF core fonts may struggle with Emoji, 
+                    // but we will try. If they fail, the colors will still indicate the section.
+                    if (explanation.what_you_did_well) {
+                        rows.push(['(+)', cleanText(explanation.what_you_did_well)]);
+                    }
+                    if (explanation.what_was_missing) {
+                        rows.push(['(!)', cleanText(explanation.what_was_missing)]);
+                    }
+                    if (explanation.strong_answer_guidance) {
+                        rows.push(['(?)', cleanText(explanation.strong_answer_guidance)]);
+                    }
 
-                    // 2. Missing
-                    doc.setFont("helvetica", "bold");
-                    doc.setTextColor(234, 88, 12); // Orange/Red
-                    doc.text("What Was Missing:", 20, y);
-                    y += 5;
-                    doc.setFont("helvetica", "normal");
-                    doc.setTextColor(0);
-                    const missLines = doc.splitTextToSize(explanation.what_was_missing, 170);
-                    doc.text(missLines, 20, y);
-                    y += missLines.length * 5 + 5;
-
-                    // 3. Guidance
-                    doc.setFont("helvetica", "italic");
-                    doc.setTextColor(75, 85, 99); // Gray
-                    doc.text("How a Strong Answer Sounds:", 20, y);
-                    y += 5;
-                    doc.setFont("helvetica", "normal");
-                    const guideLines = doc.splitTextToSize(explanation.strong_answer_guidance, 170);
-                    doc.text(guideLines, 20, y);
-                    y += guideLines.length * 5 + 10;
-
+                    autoTable(doc, {
+                        startY: finalY,
+                        body: rows,
+                        theme: 'grid',
+                        columnStyles: {
+                            0: { cellWidth: 15, fontStyle: 'bold', fontSize: 12, halign: 'center', valign: 'middle' },
+                            1: { fontSize: 10, cellPadding: 4 }
+                        },
+                        didParseCell: function (data) {
+                            if (data.section === 'body' && data.column.index === 0) {
+                                const label = data.cell.raw;
+                                if (label === '(+)') {
+                                    data.cell.styles.textColor = colors.successText;
+                                    data.cell.text = 'OK'; // Safe fallback text
+                                }
+                                if (label === '(!)') {
+                                    data.cell.styles.textColor = colors.dangerText;
+                                    data.cell.text = '!';
+                                }
+                                if (label === '(?)') {
+                                    data.cell.styles.textColor = colors.primary;
+                                    data.cell.text = '?';
+                                }
+                            }
+                        }
+                    });
+                    finalY = doc.lastAutoTable.finalY + 10;
                 } else {
                     // Fallback
-                    doc.setFont("helvetica", "italic");
-                    doc.setTextColor(16, 185, 129);
-                    const fLines = doc.splitTextToSize(`Feedback: ${item.feedback.feedback}`, 170);
-                    doc.text(fLines, 20, y);
-                    y += fLines.length * 4 + 10;
+                    autoTable(doc, {
+                        startY: finalY,
+                        body: [[cleanText(item.feedback.feedback)]],
+                        theme: 'plain',
+                        bodyStyles: { textColor: colors.text }
+                    });
+                    finalY = doc.lastAutoTable.finalY + 10;
                 }
             });
         }
 
-        // Summary / Footer
-        if (y > 250) {
-            doc.addPage();
-            y = 20;
-        }
-        y += 5;
-        doc.setDrawColor(200);
-        doc.line(20, y, 190, y);
-        y += 10;
-        doc.setFont("helvetica", "bold");
-        doc.setFontSize(12);
-        doc.setTextColor(0);
-        doc.text("Summary & Suggestions", 20, y);
-        y += 7;
-        doc.setFont("helvetica", "normal");
-        doc.setFontSize(10);
-        const summaryText = "Review your clarity scores and pacing trends. Consistent practice with focusing on 'Clarity' feedback will help improve your overall interview presence.";
-        const sLines = doc.splitTextToSize(summaryText, 170);
-        doc.text(sLines, 20, y);
-
-        doc.save(`InterviewAce_Report_${new Date(session.date).toISOString().split('T')[0]}.pdf`);
+        doc.save(`InterviewAce_Report_${new Date().toISOString().split('T')[0]}.pdf`);
     };
 
     return (
@@ -213,13 +221,13 @@ const Report = () => {
                     <div className="col-md-4">
                         <div className="p-3 bg-secondary bg-opacity-10 rounded-3">
                             <span className="d-block small text-secondary fw-bold text-uppercase tracking-wider">Role</span>
-                            <span className="h5 fw-bold text-primary mb-0 d-block mt-1">{session.role}</span>
+                            <span className="h5 fw-bold text-primary mb-0 d-block mt-1">{cleanText(session.role)}</span>
                         </div>
                     </div>
                     <div className="col-md-4">
                         <div className="p-3 bg-secondary bg-opacity-10 rounded-3">
                             <span className="d-block small text-secondary fw-bold text-uppercase tracking-wider">Difficulty</span>
-                            <span className="h5 fw-bold text-primary mb-0 d-block mt-1">{session.difficulty}</span>
+                            <span className="h5 fw-bold text-primary mb-0 d-block mt-1">{cleanText(session.difficulty)}</span>
                         </div>
                     </div>
                     <div className="col-md-4">
@@ -235,7 +243,7 @@ const Report = () => {
             {session.report && (
                 <div className="card-google p-4 p-md-5 mb-5 border-start border-4 border-primary">
                     <h2 className="h4 fw-bold text-primary mb-3">Overall Evaluation</h2>
-                    <p className="lead text-secondary mb-4">{session.report.summary}</p>
+                    <p className="lead text-secondary mb-4">{cleanText(session.report.summary)}</p>
 
                     <div className="row g-4">
                         <div className="col-md-6">
@@ -243,7 +251,7 @@ const Report = () => {
                             <ul className="list-group list-group-flush rounded-3 border">
                                 {session.report.strengths?.map((s, i) => (
                                     <li key={i} className="list-group-item bg-success-subtle border-success-subtle text-success-emphasis">
-                                        ✓ {s}
+                                        ✓ {cleanText(s)}
                                     </li>
                                 ))}
                             </ul>
@@ -253,7 +261,7 @@ const Report = () => {
                             <ul className="list-group list-group-flush rounded-3 border">
                                 {session.report.weaknesses?.map((w, i) => (
                                     <li key={i} className="list-group-item bg-danger-subtle border-danger-subtle text-danger-emphasis">
-                                        ! {w}
+                                        ! {cleanText(w)}
                                     </li>
                                 ))}
                             </ul>
@@ -264,7 +272,7 @@ const Report = () => {
                         <strong className="d-block mb-3 text-uppercase small tracking-wider fw-bold">Your Top 3 Focus Areas</strong>
                         <ul className="mb-0 ps-3">
                             {session.report.suggestions?.map((s, i) => (
-                                <li key={i} className="mb-2">{s}</li>
+                                <li key={i} className="mb-2">{cleanText(s)}</li>
                             ))}
                         </ul>
                     </div>
@@ -281,13 +289,13 @@ const Report = () => {
                                 <span className="badge bg-primary-subtle text-primary border border-primary-subtle rounded-pill align-self-start mt-1">
                                     Q{i + 1}
                                 </span>
-                                <h4 className="h5 fw-bold text-primary mb-0 lh-base">{a.question}</h4>
+                                <h4 className="h5 fw-bold text-primary mb-0 lh-base">{cleanText(a.question)}</h4>
                             </div>
 
                             <div className="mb-4 ps-md-4">
                                 <div className="bg-body p-3 rounded-3 border mb-3">
                                     <span className="small text-secondary fw-bold d-block mb-2">YOUR ANSWER</span>
-                                    <p className="mb-0 text-primary">{a.answer}</p>
+                                    <p className="mb-0 text-primary">{cleanText(a.answer)}</p>
                                 </div>
                                 {/* Metrics Removed (Dummy Data Unreliable) */}
 
@@ -298,19 +306,19 @@ const Report = () => {
                                 {session.report?.question_explanations?.[i] ? (
                                     <div className="d-flex flex-column gap-3">
                                         <div className="bg-success-subtle p-3 rounded-3 text-success-emphasis border border-success-subtle">
-                                            <strong>✓ What You Did Well:</strong> {session.report.question_explanations[i].what_you_did_well}
+                                            <strong>✓ What You Did Well:</strong> {cleanText(session.report.question_explanations[i].what_you_did_well)}
                                         </div>
                                         <div className="bg-warning-subtle p-3 rounded-3 text-warning-emphasis border border-warning-subtle">
-                                            <strong>⚠️ What Was Missing:</strong> {session.report.question_explanations[i].what_was_missing}
+                                            <strong>⚠️ What Was Missing:</strong> {cleanText(session.report.question_explanations[i].what_was_missing)}
                                         </div>
                                         <div className="bg-white p-3 rounded-3 text-secondary border shadow-sm">
                                             <strong>💡 How a Strong Answer Sounds:</strong>
-                                            <div className="mt-1">{session.report.question_explanations[i].strong_answer_guidance}</div>
+                                            <div className="mt-1">{cleanText(session.report.question_explanations[i].strong_answer_guidance)}</div>
                                         </div>
                                     </div>
                                 ) : (
                                     <div className="bg-success-subtle p-4 rounded-3 text-secondary border border-success border-opacity-10" style={{ fontSize: '0.95rem' }}>
-                                        <ReactMarkdown>{a.feedback.feedback}</ReactMarkdown>
+                                        <ReactMarkdown>{cleanText(a.feedback.feedback)}</ReactMarkdown>
                                     </div>
                                 )}
                             </div>

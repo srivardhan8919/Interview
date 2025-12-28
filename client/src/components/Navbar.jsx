@@ -15,6 +15,11 @@ const Navbar = () => {
 
     const isActive = (path) => location.pathname === path;
 
+    // Hide navbar on auth pages
+    if (location.pathname === '/login' || location.pathname === '/signup') {
+        return null;
+    }
+
     return (
         <nav className="fixed-top bg-surface border-bottom" style={{ zIndex: 9999 }}>
             <div className="container-fluid px-4 py-3">
@@ -114,3 +119,4 @@ const Navbar = () => {
 };
 
 export default Navbar;
+

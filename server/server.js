@@ -15,10 +15,12 @@ app.use(express.json());
 const authRoutes = require('./routes/auth');
 const aiRoutes = require('./routes/ai');
 const sessionRoutes = require('./routes/sessions');
+const healthRoutes = require('./routes/health');
 
 app.use('/api/auth', authRoutes);
 app.use('/api/ai', aiRoutes);
 app.use('/api/sessions', sessionRoutes);
+app.use('/api', healthRoutes);
 
 app.get('/', (req, res) => {
     res.send('InterviewAce API is running');

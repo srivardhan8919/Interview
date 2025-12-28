@@ -1,38 +1,53 @@
-const sqlite3 = require('sqlite3').verbose();
-const path = require('path');
+const { Pool } = require('pg');
+require('dotenv').config();
 
-const dbPath = path.resolve(__dirname, 'interviewace.db');
+const isProduction = process.env.NODE_ENV === 'production';
 
-const db = new sqlite3.Database(dbPath, (err) => {
-    if (err) {
-        console.error('Error opening database ' + dbPath + ': ' + err.message);
-    } else {
-        console.log('Connected to the SQLite database.');
+const connectionString = process.env.DATABASE_URL;
 
-        // Create Users Table
-        db.run(`CREATE TABLE IF NOT EXISTS users (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            username TEXT UNIQUE NOT NULL,
-            password_hash TEXT NOT NULL,
-            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-        )`, (err) => {
-            if (err) console.error("Error creating users table:", err);
-        });
-
-        // Create Sessions Table
-        db.run(`CREATE TABLE IF NOT EXISTS sessions (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id INTEGER NOT NULL,
-            role TEXT NOT NULL,
-            difficulty TEXT NOT NULL,
-            score INTEGER,
-            date DATETIME DEFAULT CURRENT_TIMESTAMP,
-            data_json TEXT,
-            FOREIGN KEY (user_id) REFERENCES users (id)
-        )`, (err) => {
-            if (err) console.error("Error creating sessions table:", err);
-        });
-    }
+const pool = new Pool({
+    connectionString: connectionString,
+    ssl: (isProduction || process.env.DB_SSL === 'true') ? { rejectUnauthorized: false } : false,
 });
 
-module.exports = db;
+pool.on('connect', () => {
+    console.log('Connected to the PostgreSQL database.');
+});
+
+const initializeDB = async () => {
+    try {
+        // Create Users Table
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS users (
+                id SERIAL PRIMARY KEY,
+                username VARCHAR(255) UNIQUE NOT NULL,
+                password_hash TEXT NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        `);
+
+        // Create Sessions Table
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS sessions (
+                id SERIAL PRIMARY KEY,
+                user_id INTEGER NOT NULL REFERENCES users(id),
+                role VARCHAR(255) NOT NULL,
+                difficulty VARCHAR(255) NOT NULL,
+                score INTEGER,
+                date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                data_json JSONB
+            )
+        `);
+
+        console.log('Database tables initialized.');
+    } catch (err) {
+        console.error('Error initializing database tables:', err);
+    }
+};
+
+initializeDB();
+
+module.exports = {
+    query: (text, params) => pool.query(text, params),
+};
+
